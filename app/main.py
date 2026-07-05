@@ -1,9 +1,21 @@
-from fastapi import FastAPI
+from fastapi import FastAPI 
+from pydantic import BaseModel, HttpUrl
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
 
 app =FastAPI()
+
+class Course(BaseModel):
+    name: str
+    instructor: str
+    duration: int
+    website: HttpUrl
+             
+    
+          
+        
+
 
 
 while True:
@@ -23,3 +35,21 @@ def alam():
     cursor.execute("SELECT * FROM course")
     data = cursor.fetchall()
     return {"data": data}
+
+@app.post("/api/post")
+def create_course(course: Course):
+    cursor.execute(
+        """
+        INSERT INTO course (name, instructor, duration, website)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (
+            course.name,
+            course.instructor,
+            course.duration,
+            str(course.website)
+        )
+    )
+    conn.commit()
+
+    return {"message": "Course created successfully"}
