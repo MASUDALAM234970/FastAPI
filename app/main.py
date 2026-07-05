@@ -1,4 +1,4 @@
-from fastapi import FastAPI 
+from fastapi import FastAPI ,HTTPException
 from pydantic import BaseModel, HttpUrl
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -53,3 +53,14 @@ def create_course(course: Course):
     conn.commit()
 
     return {"message": "Course created successfully"}
+
+@app.get("/api/{id}")
+def get_course(id: int):
+    cursor.execute(
+        "SELECT * FROM course WHERE id = %s",
+        (id,)
+    )
+
+    course = cursor.fetchone()
+
+    return {"data": course}
