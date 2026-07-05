@@ -3,17 +3,22 @@ from pydantic import BaseModel, HttpUrl
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
+from typing import Optional
 
 app =FastAPI()
 
-class Course(BaseModel):
-    name: str
-    instructor: str
-    duration: int
-    website: HttpUrl
+# class Course(BaseModel):
+#     name: str
+#     instructor: str
+#     duration: int
+#     website: HttpUrl
              
     
-          
+class Course(BaseModel):
+    name: Optional[str] = None
+    instructor: Optional[str] = None
+    duration: Optional[int] = None
+    website: Optional[HttpUrl] = None 
         
 
 
@@ -86,4 +91,76 @@ def delete_course(id: int):
 
     return {
         "message": "Course deleted successfully"
+    }
+
+
+@app.put("/api/{id}")
+def update_course(id: int, course: Course):
+
+    cursor.execute(
+        """
+        UPDATE course
+        SET name = %s,
+            instructor = %s,
+            duration = %s,
+            website = %s
+        WHERE id = %s
+        RETURNING *
+        """,
+        (
+            course.name,
+            course.instructor,
+            course.duration,
+            str(course.website),
+            id
+        )
+    )
+
+    updated_course = cursor.fetchone()
+    conn.commit()
+
+    if updated_course is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Course not found"
+        )
+
+    return {
+        "message": "Course updated successfully",
+        "data": updated_course
+    }
+
+from fastapi import HTTPException
+
+@app.patch("/api/{id}")
+def update_course(id: int, course: Course):
+
+    update_data = course.model_dump(exclude_unset=True)
+
+    if not update_data:
+        return {"message": "No fields provided"}
+
+    query = "UPDATE course SET "
+    values = []
+
+    for key, value in update_data.items():
+        query += f"{key} = %s, "
+        values.append(str(value) if key == "website" else value)
+
+    query = query.rstrip(", ")
+    query += " WHERE id = %s RETURNING *"
+
+    values.append(id)
+
+    cursor.execute(query, tuple(values))
+
+    updated_course = cursor.fetchone()
+    conn.commit()
+
+    if updated_course is None:
+        return {"message": "Course not found"}
+
+    return {
+        "message": "Course updated successfully",
+        "data": updated_course
     }
