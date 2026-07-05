@@ -1,18 +1,43 @@
-from fastapi import FastAPI , Depends
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel, HttpUrl
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import time
-from typing import Optional
+from sqlalchemy.orm import Session
+
 from . import models
-from sqlalchemy.orm import session
-from . database import engine ,get_db
+from .database import engine, get_db
 
-
-app =FastAPI()
+app = FastAPI()
 
 models.Base.metadata.create_all(bind=engine)
 
-@app.get("/api/")
-def course(db:session =Depends(get_db)):
-    return{"status":"sqlalchemy ORM working"}
+
+class CourseCreate(BaseModel):
+    name: str
+    instructor: str
+    duration: float
+    price: float
+    website: HttpUrl
+
+
+@app.post("/api")
+def create_course(
+    course: CourseCreate,
+    db: Session = Depends(get_db)
+):
+    new_course = models.Course(
+        name=course.name,
+        instructor=course.instructor,
+        duration=course.duration,
+        price=course.price,
+        website=str(course.website)
+    )
+
+    db.add(new_course)
+    db.commit()
+    db.refresh(new_course)
+
+    return new_course
+
+@app.get("/api")
+def course(db:Session =Depends(get_db)):
+    course=db.query(models.Course).all()
+    return course
