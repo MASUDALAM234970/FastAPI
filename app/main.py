@@ -1,119 +1,43 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends ,status
 
 from sqlalchemy.orm import Session
 
 
 from fastapi import HTTPException
 
-from . import models,schemas
+from . import models,schemas ,utils
 from .database import engine, get_db
 
 app = FastAPI()
 
 models.Base.metadata.create_all(bind=engine)
 
-@app.post("/api", response_model=schemas.CourseResponse)
-def create_course(
-    course: schemas.CourseCreate,
+
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException, status
+
+@app.post("/api/user", status_code=status.HTTP_201_CREATED , response_model=schemas.UserRes)
+def test_user(
+    user: schemas.UserCrete,
     db: Session = Depends(get_db)
 ):
-    new_course = models.Course(**course.model_dump())
+    
 
-    db.add(new_course)
-    db.commit()
-    db.refresh(new_course)
+    try:
+        hashed_password =utils.hash_password(user.password)
+        user.password =hashed_password
+        new_user = models.User(**user.model_dump())
 
-    return new_course
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
 
-@app.get("/api", response_model=list[schemas.CourseResponse])
-def get_courses(db: Session = Depends(get_db)):
-    courses = db.query(models.Course).all()
-    return courses
+        return new_user
 
+    except IntegrityError:
+        db.rollback()
 
-@app.get("/api/{id}", response_model=schemas.CourseResponse)
-def get_course(id: int, db: Session = Depends(get_db)):
-    course = db.query(models.Course).filter(
-        models.Course.id == id
-    ).first()
-
-    if not course:
         raise HTTPException(
-            status_code=404,
-            detail="Course not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already exists"
         )
-
-    return course
-
-@app.put("/api/{id}", response_model=schemas.CourseResponse)
-def update_course(
-    id: int,
-    course: schemas.CourseCreate,
-    db: Session = Depends(get_db)
-):
-    existing_course = db.query(models.Course).filter(
-        models.Course.id == id
-    ).first()
-
-    if not existing_course:
-        raise HTTPException(
-            status_code=404,
-            detail="Course not found"
-        )
-
-    existing_course.name = course.name
-    existing_course.instructor = course.instructor
-    existing_course.duration = course.duration
-
-    db.commit()
-    db.refresh(existing_course)
-
-    return existing_course
-
-@app.patch("/api/{id}", response_model=schemas.CourseResponse)
-def patch_course(
-    id: int,
-    course: schemas.CourseCreate,
-    db: Session = Depends(get_db)
-):
-    existing_course = db.query(models.Course).filter(
-        models.Course.id == id
-    ).first()
-
-    if not existing_course:
-        raise HTTPException(
-            status_code=404,
-            detail="Course not found"
-        )
-
-    update_data = course.model_dump(exclude_unset=True)
-
-    for key, value in update_data.items():
-        setattr(existing_course, key, value)
-
-    db.commit()
-    db.refresh(existing_course)
-
-    return existing_course
-
-@app.delete("/api/{id}")
-def delete_course(
-    id: int,
-    db: Session = Depends(get_db)
-):
-    course = db.query(models.Course).filter(
-        models.Course.id == id
-    ).first()
-
-    if not course:
-        raise HTTPException(
-            status_code=404,
-            detail="Course not found"
-        )
-
-    db.delete(course)
-    db.commit()
-
-    return {
-        "message": "Course deleted successfully"
-    }
